@@ -18,22 +18,16 @@ echo -e "Starting search and removal of ${CYAN}bin${NC} and ${CYAN}obj${NC} dire
 format_size() {
     local size=$1
     if [ "$size" -ge 1073741824 ]; then
-        # echo "$(echo "scale=2; $size/1073741824" | bc) GB"
         awk -v s="$size" 'BEGIN{printf "%.2f GB\n", s/1073741824}'
     elif [ "$size" -ge 1048576 ]; then
-        # echo "$(echo "scale=2; $size/1048576" | bc) MB"
         awk -v s="$size" 'BEGIN{printf "%.2f MB\n", s/1048576}'
     elif [ "$size" -ge 1024 ]; then
-        # echo "$(echo "scale=2; $size/1024" | bc) KB"
         awk -v s="$size" 'BEGIN{printf "%.2f KB\n", s/1024}'
     else
         echo "$size B"
     fi
 }
 
-# Create a temporary file to store total size
-# temp_file=$(mktemp)
-# echo "0" > "$temp_file"
 # Search and remove directories
 find . \( -path "*/node_modules/*" -o -path "*/.git/*" \) -prune -o \
        -type d \( -name "bin" -o -name "obj" \) -print0 |
@@ -46,17 +40,10 @@ while IFS= read -r -d '' dir; do
         [ -z "$dir" ] && continue
 
         # Get directory size in kilobytes
-        # size_kb=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
         size_kb=$(du -sk -- "$dir" 2>/dev/null | awk '{print $1}')
         
         # Verify we got a number
         if [[ "$size_kb" =~ ^[0-9]+$ ]]; then
-            # Read current value from file
-            # current_total=$(<"$temp_file")
-            # Update total (in bytes)
-            # new_total=$((current_total + size_kb * 1024))
-            # Save back to file
-            # echo "$new_total" > "$temp_file"
             # Update total (in bytes)
             TOTAL_SIZE=$(( TOTAL_SIZE + size_kb * 1024 ))
             # Format size for display
@@ -68,7 +55,6 @@ while IFS= read -r -d '' dir; do
         # Display removal info
         dir_name=$(basename -- "$dir")
         dir_path=$(dirname -- "$dir")
-        # full_path="${dir_path#./}"
         [[ "$dir_path" == "." ]] && full_path="" || full_path="${dir_path#./}/"
         echo -e "${RED}Removing:${NC} ${full_path:+$full_path/}${CYAN}${dir_name}${NC} ${YELLOW}(${size_display})${NC}"
         
@@ -76,13 +62,6 @@ while IFS= read -r -d '' dir; do
         rm -rf -- "$dir" 2>/dev/null
     fi
 done
-
-# Finish directory processing
-
-# Read total size from temp file
-# TOTAL_SIZE=$(<"$temp_file")
-# Remove temp file
-# rm -f "$temp_file"
 
 # Calculate execution time
 END_TIME=$(date +%s)
