@@ -1,8 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euxo pipefail
 
 # Colors for output
 RED='\033[0;31m'
-BLUE='\033[0;34m'
+# BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
@@ -16,23 +17,27 @@ echo -e "Starting search and removal of ${CYAN}bin${NC} and ${CYAN}obj${NC} dire
 # Function to format size
 format_size() {
     local size=$1
-    if [ $size -ge 1073741824 ]; then
-        echo "$(echo "scale=2; $size/1073741824" | bc) GB"
-    elif [ $size -ge 1048576 ]; then
-        echo "$(echo "scale=2; $size/1048576" | bc) MB"
-    elif [ $size -ge 1024 ]; then
-        echo "$(echo "scale=2; $size/1024" | bc) KB"
+    if [ "$size" -ge 1073741824 ]; then
+        # echo "$(echo "scale=2; $size/1073741824" | bc) GB"
+        awk -v s="$size" 'BEGIN{printf "%.2f GB\n", s/1073741824}'
+    elif [ "$size" -ge 1048576 ]; then
+        # echo "$(echo "scale=2; $size/1048576" | bc) MB"
+        awk -v s="$size" 'BEGIN{printf "%.2f MB\n", s/1048576}'
+    elif [ "$size" -ge 1024 ]; then
+        # echo "$(echo "scale=2; $size/1024" | bc) KB"
+        awk -v s="$size" 'BEGIN{printf "%.2f KB\n", s/1024}'
     else
         echo "$size B"
     fi
 }
 
 # Create a temporary file to store total size
-temp_file=$(mktemp)
-echo "0" > "$temp_file"
-
+# temp_file=$(mktemp)
+# echo "0" > "$temp_file"
 # Search and remove directories
-while IFS= read -r dir; do
+find . \( -path "*/node_modules/*" -o -path "*/.git/*" \) -prune -o \
+       -type d \( -name "bin" -o -name "obj" \) -print0 |
+while IFS= read -r -d '' dir; do
     if [ -d "$dir" ]; then
         # Clean up path from extra spaces
         dir=$(echo "$dir" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -41,16 +46,19 @@ while IFS= read -r dir; do
         [ -z "$dir" ] && continue
 
         # Get directory size in kilobytes
-        size_kb=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
+        # size_kb=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
+        size_kb=$(du -sk -- "$dir" 2>/dev/null | awk '{print $1}')
         
         # Verify we got a number
         if [[ "$size_kb" =~ ^[0-9]+$ ]]; then
             # Read current value from file
-            current_total=$(<"$temp_file")
+            # current_total=$(<"$temp_file")
             # Update total (in bytes)
-            new_total=$((current_total + size_kb * 1024))
+            # new_total=$((current_total + size_kb * 1024))
             # Save back to file
-            echo "$new_total" > "$temp_file"
+            # echo "$new_total" > "$temp_file"
+            # Update total (in bytes)
+            TOTAL_SIZE=$(( TOTAL_SIZE + size_kb * 1024 ))
             # Format size for display
             size_display="${size_kb}K"
         else
@@ -58,22 +66,23 @@ while IFS= read -r dir; do
         fi
 
         # Display removal info
-        dir_name=$(basename "$dir")
-        dir_path=$(dirname "$dir")
-        full_path="${dir_path#./}"
+        dir_name=$(basename -- "$dir")
+        dir_path=$(dirname -- "$dir")
+        # full_path="${dir_path#./}"
+        [[ "$dir_path" == "." ]] && full_path="" || full_path="${dir_path#./}/"
         echo -e "${RED}Removing:${NC} ${full_path:+$full_path/}${CYAN}${dir_name}${NC} ${YELLOW}(${size_display})${NC}"
         
         # Remove directory
-        rm -rf "$dir" 2>/dev/null
+        rm -rf -- "$dir" 2>/dev/null
     fi
-done < <(find . -type d \( -name "bin" -o -name "obj" \) -not -path "*/node_modules/*" 2>/dev/null)
+done
 
 # Finish directory processing
 
 # Read total size from temp file
-TOTAL_SIZE=$(<"$temp_file")
+# TOTAL_SIZE=$(<"$temp_file")
 # Remove temp file
-rm -f "$temp_file"
+# rm -f "$temp_file"
 
 # Calculate execution time
 END_TIME=$(date +%s)
@@ -81,6 +90,6 @@ ELAPSED_TIME=$((END_TIME - START_TIME))
 
 # Display report
 echo -e "\n${CYAN}=== REPORT ===${NC}"
-echo -e "Total space freed: ${YELLOW}$(format_size $TOTAL_SIZE)${NC}"
+echo -e "Total space freed: ${YELLOW}$(format_size "$TOTAL_SIZE")${NC}"
 echo -e "Total execution time: ${YELLOW}${ELAPSED_TIME} seconds${NC}"
 echo -e "Cleanup completed!${NC}"
