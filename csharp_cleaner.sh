@@ -13,50 +13,63 @@ NC='\033[0m' # No Color
 is_protected_directory() {
     local dir="$1"
     local abs_path
-    abs_path=$(realpath "$dir" 2>/dev/null || echo "$dir")
+    abs_path=$(realpath -m "$dir" 2>/dev/null || echo "$dir")
 
-    # List of protected directories and patterns
-    local protected_patterns=(
+    # Directories that are protected ONLY on an exact path match (i.e., subdirectories are allowed).
+    local exact_protected=(
         "/"
-        "/var"
-        "/usr"
         "/home"
-        "/etc"
+        "$HOME"
+    )
+
+    # Directories that are protected by prefix (the directories themselves and everything inside).
+    local prefix_protected=(
         "/bin"
         "/sbin"
         "/lib"
         "/lib64"
-        "/opt"
-        "/tmp"
-        "/root"
+        "/usr"
+        "/etc"
+        "/var"
         "/boot"
         "/dev"
         "/proc"
         "/sys"
-        "/mnt"
-        "/media"
         "/run"
         "/srv"
-        "/var/log"
-        "/var/cache"
-        "/var/tmp"
+        "/mnt"
+        "/media"
+        "/opt"
+        "/root"
+        "/tmp"
         "/usr/local"
         "/usr/bin"
         "/usr/sbin"
         "/usr/lib"
         "/usr/share"
         "/usr/src"
-        "/home/*"
-        "/root/*"
+
+        # MacOS
+        "/Applications"
+        "/System"
+        "/Library"
     )
 
-    for pattern in "${protected_patterns[@]}"; do
-        if [[ "$abs_path" == "$pattern" || "$abs_path" == "$pattern"/* ]]; then
-            return 0  # Protected
+    # Exact-match prohibition.
+    for p in "${exact_protected[@]}"; do
+        if [[ "$abs_path" == "$p" ]]; then
+            return 0
         fi
     done
 
-    return 1  # Not protected
+    # Prohibition if the path is one of the listed directories or nested within it.
+    for p in "${prefix_protected[@]}"; do
+        if [[ "$abs_path" == "$p" || "$abs_path" == "$p"/* ]]; then
+            return 0
+        fi
+    done
+
+    return 1
 }
 
 # Function to check if directory is a C# repository
