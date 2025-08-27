@@ -109,6 +109,8 @@ echo -e "${GREEN} C# repository detected${NC}"
 # Variables for statistics
 TOTAL_SIZE=0
 START_TIME=$(date +%s)
+# don't delete mktemp! Problem inside while after pipe. Changing variable TEMP_SIZE_FILE doesn't change in main process!
+TEMP_SIZE_FILE=$(mktemp)
 
 echo -e "Starting search and removal of ${CYAN}bin${NC} and ${CYAN}obj${NC} directories in: ${CYAN}$TARGET_DIR${NC}"
 
@@ -139,11 +141,11 @@ while IFS= read -r -d '' dir; do
 
         # Get directory size in kilobytes
         size_kb=$(du -sk -- "$dir" 2>/dev/null | awk '{print $1}')
-        
+
         # Verify we got a number
         if [[ "$size_kb" =~ ^[0-9]+$ ]]; then
-            # Update total (in bytes)
-            TOTAL_SIZE=$(( TOTAL_SIZE + size_kb * 1024 ))
+            # Update total (in bytes) and save to temp file
+            echo "$(( size_kb * 1024 ))" >> "$TEMP_SIZE_FILE"
             # Format size for display
             size_display="${size_kb}K"
         else
@@ -155,11 +157,19 @@ while IFS= read -r -d '' dir; do
         dir_path=$(dirname -- "$dir")
         [[ "$dir_path" == "." ]] && full_path="" || full_path="${dir_path#./}/"
         echo -e "${RED}Removing:${NC} ${full_path:+$full_path/}${CYAN}${dir_name}${NC} ${YELLOW}(${size_display})${NC}"
-        
+
         # Remove directory
         rm -rf -- "$dir" 2>/dev/null
     fi
 done
+
+# Calculate total size from temp file
+if [ -f "$TEMP_SIZE_FILE" ]; then
+    TOTAL_SIZE=$(awk '{sum += $1} END {print sum}' "$TEMP_SIZE_FILE")
+    rm -f "$TEMP_SIZE_FILE"
+else
+    TOTAL_SIZE=0
+fi
 
 # Calculate execution time
 END_TIME=$(date +%s)
